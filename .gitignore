@@ -1,3 +1,5 @@
+.env*
+
 # Directories #
 /build/
 bin/
@@ -8,7 +10,9 @@ doc/
 .gradle/
 /bin/
 target/
- 
+
+!gradle/wrapper/gradle-wrapper.jar
+
 # OS Files #
 .DS_Store
 
@@ -63,45 +67,42 @@ fabric.properties
 
 *.class
 browscap.csv
-gradle/wrapper
-gradlew.bat
-gradlew
 
 # Package Files #
 *.jar
 *.war
 *.ear
 *.db
- 
+
 ######################
 # Windows
 ######################
- 
+
 # Windows image file caches
 Thumbs.db 
- 
+
 # Folder config file
 Desktop.ini
- 
+
 ######################
 # OSX
 ######################
- 
+
 .DS_Store
 .svn
- 
+
 # Thumbnails
 ._*
- 
+
 # Files that might appear on external disk
 .Spotlight-V100
 .Trashes
- 
- 
+
+
 ######################
 # Eclipse
 ######################
- 
+
 *.pydevproject
 .project
 .metadata
@@ -119,12 +120,12 @@ local.properties
 /src/main/resources/rebel.xml
 # External tool builders
 .externalToolBuilders/
- 
+
 # Locally stored "Eclipse launch configurations"
 *.launch
- 
+
 # CDT-specific
 .cproject
- 
+
 # PDT-specific
 .buildpath

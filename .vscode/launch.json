@@ -1,4 +1,5 @@
 {
+  "$schema": "https://codeberg.org/mfussenegger/dapconfig-schema/raw/branch/master/dapconfig-schema.json",
   "version": "0.2.0",
   "configurations": [
     {

@@ -1,4 +1,4 @@
-FROM temurin:21-jdk-alpine AS builder
+FROM eclipse-temurin:21-jdk-alpine AS builder
 
 WORKDIR /build
 
@@ -16,7 +16,7 @@ COPY src src
 RUN --mount=type=cache,target=/root/.gradle \
 ./gradlew bootJar --no-daemon -x test
 
-FROM temurin:21-jre-alpine AS runner
+FROM eclipse-temurin:21-jre-alpine AS runner
 
 WORKDIR /app
 

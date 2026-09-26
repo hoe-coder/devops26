@@ -1,0 +1,15 @@
+[Unit]
+Description=Springboot Podman Application
+
+[Container]
+ContainerName=devops-app-pod
+Image=localhost/app:latest
+PublishPort=8090:8080
+AutoUpdate=local
+
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

@@ -1,9 +1,7 @@
 services:
-  app:
-    container_name: devops_app
-    build: .
-    ports:
-      - "8080:8080" 
-      - "5005:5005"
+  sonarqube:
+    container_name: devops-sonarqube
 
-
+  sonardb:
+    container_name: devops-sonardb
+    image: postgresql:15

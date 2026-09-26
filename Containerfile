@@ -10,13 +10,11 @@ COPY build.gradle settings.gradle ./
 
 RUN chmod +x ./gradlew
 
-# Step 1: Pre-download dependencies (persists to gradle-cache)
 RUN --mount=type=cache,id=gradle-cache,target=/root/.gradle \
     ./gradlew dependencies --no-daemon
 
 COPY src src
 
-# Step 2: Build JAR with task caching enabled (reuses dependency cache + stores compiled tasks)
 RUN --mount=type=cache,id=gradle-cache,target=/root/.gradle \
     ./gradlew bootJar --build-cache --no-daemon -x test
 

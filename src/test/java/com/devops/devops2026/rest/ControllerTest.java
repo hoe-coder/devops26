@@ -23,11 +23,12 @@ class ControllerTest {
             .andExpect(content().string("Hello!"));
     }
 
+    @Test
+    @DisplayName("Should return provided Name")
     void test_ShouldReturnProvidedName() throws Exception {
         String testName = "Alice";
         mvc.perform(get("/test/{name}", testName))
             .andExpect(status().isOk())
             .andExpect(content().string(testName));
     }
-
 }

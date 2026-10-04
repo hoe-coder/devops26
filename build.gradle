@@ -31,8 +31,8 @@ dependencies {
 
 sonar {
   properties {
-    property "sonar.projectKey", "hoe-coder"
-    property "sonar.organization", "FHVDevOps"
+    property "sonar.projectKey", "hoe-coder_devops26"
+    property "sonar.organization", "hoe-coder"
   }
 }
 

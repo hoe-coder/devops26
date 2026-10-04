@@ -27,7 +27,7 @@ class ControllerIntegrationTest {
     @DisplayName("Should return provided Name")
     void test_ShouldReturnProvidedName() throws Exception {
         String testName = "Alice";
-        mvc.perform(get("/test/{name}", testName))
+        mvc.perform(get("/{name}", testName))
             .andExpect(status().isOk())
             .andExpect(content().string(testName));
     }

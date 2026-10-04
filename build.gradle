@@ -30,6 +30,14 @@ dependencies {
   testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+
+sonar {
+  properties {
+    property "sonar.projectKey", "hoe-coder"
+    property "sonar.organization", "FHVDevOps"
+  }
+}
+
 testing {
   suites.configure {
     test {
@@ -61,3 +69,4 @@ tasks.named('test') {
     events "passed", "skipped", "failed"
   }
 }
+

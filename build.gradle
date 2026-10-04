@@ -2,7 +2,6 @@ plugins {
   id 'java'
   id 'org.springframework.boot' version '4.1.1'
   id 'io.spring.dependency-management' version '1.1.7'
-  id 'jvm-test-suite'
   id 'org.sonarqube' version '7.5.0.8588'
 }
 
@@ -30,7 +29,6 @@ dependencies {
   testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-
 sonar {
   properties {
     property "sonar.projectKey", "hoe-coder"
@@ -38,27 +36,32 @@ sonar {
   }
 }
 
-testing {
-  suites.configure {
-    test {
-      useJUnitJupiter()
-    }
-
-    register('integrationTest', JvmTestSuite) {
-      useJUnitJupiter()
-
-      dependencies {
-        implementation project()
-      }
-    }
-  }
-}
-
 tasks.named('test') {
+  useJUnitPlatform()
+
   maxHeapSize = '1G'
+
+  // Do NOT run integration tests here
+  exclude '**/*IntegrationTest.class'
 
   testLogging {
     events "passed", "skipped", "failed"
   }
 }
 
+tasks.register('integrationTest', Test) {
+  description = 'Runs integration tests'
+  group = 'verification'
+
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+
+  // Run ONLY integration tests
+  include '**/*IntegrationTest.class'
+
+  useJUnitPlatform()
+
+  testLogging {
+    events "passed", "skipped", "failed"
+  }
+}

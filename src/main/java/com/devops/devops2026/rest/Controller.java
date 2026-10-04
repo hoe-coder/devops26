@@ -13,7 +13,7 @@ public class Controller {
         return "Hello!";
     }
 
-    @GetMapping("/test/{name}")
+    @GetMapping("/{name}")
     public ResponseEntity<String> test(@PathVariable String name) {
         return ResponseEntity.ok(name);
     }

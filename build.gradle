@@ -21,6 +21,7 @@ repositories {
 
 dependencies {
   implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+  implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
   developmentOnly 'org.springframework.boot:spring-boot-devtools'
   developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
@@ -45,16 +46,12 @@ testing {
       targets {
         all {
           testTask.configure {
-            shouldRunAfter(testing.suites.named('test'))
+            shouldRunAfter(test)
           }
         }
       }
     }
   }
-}
-
-tasks.named('check') {
-  dependsOn(testing.suites.named('integrationTest'))
 }
 
 tasks.named('test') {

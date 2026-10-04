@@ -50,14 +50,6 @@ testing {
       dependencies {
         implementation project()
       }
-
-      targets {
-        all {
-          testTask.configure {
-            shouldRunAfter(test)
-          }
-        }
-      }
     }
   }
 }

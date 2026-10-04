@@ -35,10 +35,10 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
           restore-keys: ${{ runner.os }}-gradle
 
-      - name: Unit Tests
+      - name: Unit Tests & Sonar Analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew test sonar --info
+        run: ./gradlew test sonar
 
       - name: Build Docker
         run: |

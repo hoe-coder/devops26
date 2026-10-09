@@ -1,7 +1,8 @@
 services:
-  sonarqube:
-    container_name: devops-sonarqube
-
-  sonardb:
-    container_name: devops-sonardb
-    image: postgresql:15
+  mkdocs:
+    image: squidfunk/mkdocs-material
+    container_name: devops-mkdocs
+    ports:
+      - 8000:8000
+    volumes:
+      - ${PWD}:/docs

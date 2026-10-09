@@ -1,0 +1,42 @@
+name: Build docs and Deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker
+        run: |
+          docker build -f Dockerfile -t app:latest .
+
+      - name: Build Podman
+        run: |
+          podman build -f Containerfile -t localhost/app:latest .
+
+      - name: Deploy Docker
+        run: |
+          docker rm -f devops-app 2>/dev/null || true
+
+          docker run -d \
+            --name devops-app \
+            -p 8080:8080 \
+            app:latest
+
+      - name: Deploy Podman
+        run: |
+          export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+          export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+          
+          mkdir -p ~/.config/containers/systemd/
+          cp -av app.container ~/.config/containers/systemd/
+
+          systemctl --user daemon-reload
+          systemctl --user restart app.service

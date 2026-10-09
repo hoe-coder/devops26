@@ -13,6 +13,9 @@ RUN --mount=type=cache,target=/root/.gradle \
 
 COPY src src
 
+RUN mkdir -p src/main/resources/static/docs
+COPY out/ src/main/resources/static/docs/
+
 RUN --mount=type=cache,target=/root/.gradle \
 ./gradlew bootJar --no-daemon -x test
 

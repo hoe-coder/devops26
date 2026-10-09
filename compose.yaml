@@ -3,6 +3,6 @@ services:
     image: squidfunk/mkdocs-material
     container_name: devops-mkdocs
     ports:
-      - 8000:8000
+      - 80:8000
     volumes:
       - ${PWD}:/docs

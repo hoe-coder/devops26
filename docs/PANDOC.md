@@ -6,14 +6,14 @@ Pandoc is a N-M conversion library, built to convert many types of documents and
 
 Pandoc can be installed on the host machine and run like that, we want to integrate them into our Github Actions pipeline though, so we run it via the available Docker image.
 
-This is the shell command to build `file.md` into `file.pdf`.
+This is the shell command to build `file.md` into `file.pdf`:
 
 ```sh
 docker run --rm \
 pandoc/extra "file.md" -o "file.pdf"
 ```
 
-Because we have multiple files in different places that all need to be converted into PDFs we have decided to collect them in the `/docs` directory. Files created outside of this are symlinked using `ln -sf ../file.md file.md`.
+Because we have multiple files in different places that all need to be converted into PDFs we have decided to collect them in the `/docs` directory. Files created outside of this are copied into the `/docs` directory before building the PDFs.
 
 Now, for our Action we just need to iterate over all `md` files in the `/docs` directory and run `pandoc` over them.
 

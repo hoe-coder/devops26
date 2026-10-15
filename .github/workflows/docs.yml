@@ -13,6 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Copy README and DOC
+        run: |
+          mkdir -p docs
+
+          cp -av README.md docs/
+          cp -av DOC.md docs/
+
       - name: Ensure target directory exists
         run: mkdir -p src/main/resources/static/docs
       
@@ -32,7 +39,9 @@ jobs:
               docker run --rm \
                 -u $(id -u):$(id -g) \
                 -v "$PWD":/data \
-                pandoc/extra "$f" -o "src/main/resources/static/docs/${filename}.pdf"
+                pandoc/extra "$f" \
+                --pdf-engine=xelatex
+                -o "src/main/resources/static/docs/${filename}.pdf"
             fi
           done
       

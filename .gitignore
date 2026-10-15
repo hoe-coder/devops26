@@ -11,6 +11,9 @@ target/
 .gradle/
 *.class
 
+# build artifacts from document generation
+src/main/resources/static/docs/
+
 # Package Files & Archives (Keep Gradle wrapper!)
 *.jar
 *.war

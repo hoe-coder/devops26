@@ -1,9 +1,6 @@
 name: Build and Deploy Docs
 
 on:
-  push:
-    branches: [ "main" ]
-
   workflow_dispatch:
 
 jobs:
@@ -40,7 +37,7 @@ jobs:
                 -u $(id -u):$(id -g) \
                 -v "$PWD":/data \
                 pandoc/extra "$f" \
-                --pdf-engine=xelatex
+                --pdf-engine=xelatex \
                 -o "src/main/resources/static/docs/${filename}.pdf"
             fi
           done

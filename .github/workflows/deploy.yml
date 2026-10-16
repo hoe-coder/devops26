@@ -7,20 +7,35 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: app
+  TEAM: team2
+  IMAGE_NAME: team2/app
 
 jobs:
   build:
     runs-on: self-hosted
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version
+        id: version
+        uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8 # 1.75.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: main
+          DEFAULT_BUMP: patch
+          INITIAL_VERSION: 0.1.0
 
       - name: Set image tag
         run: |
-          # e.g. 42-a1b2c3d  (run number + short commit SHA)
-          echo "IMAGE_TAG=${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+            IMAGE_TAG='${{ steps.version.outputs.new_tag }}'
+            if [ -z "$IMAGE_TAG" ]; then echo "::error::No version calculated"; exit 1; fi
+            echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
       - name: Build Docker
         run: |

@@ -3,6 +3,7 @@ plugins {
   id 'org.springframework.boot' version '4.1.1'
   id 'io.spring.dependency-management' version '1.1.7'
   id 'org.sonarqube' version '7.5.0.8588'
+  id 'jacoco'
 }
 
 group = 'com.devops'
@@ -36,32 +37,58 @@ sonar {
   }
 }
 
-tasks.named('test') {
+// Common configuration for unit and integration tests
+tasks.withType(Test).configureEach {
   useJUnitPlatform()
 
   maxHeapSize = '1G'
 
-  // Do NOT run integration tests here
-  exclude '**/*IntegrationTest.class'
+  reports {
+    junitXml.required = true
+    html.required = true
+  }
 
   testLogging {
-    events "passed", "skipped", "failed"
+    events 'passed', 'skipped', 'failed'
   }
 }
 
-tasks.register('integrationTest', Test) {
+// Unit tests: everything except *IntegrationTest
+tasks.named('test', Test) {
+  exclude '**/*IntegrationTest.class'
+}
+
+// Integration tests: only *IntegrationTest
+def integrationTest = tasks.register('integrationTest', Test) {
   description = 'Runs integration tests'
   group = 'verification'
 
   testClassesDirs = sourceSets.test.output.classesDirs
   classpath = sourceSets.test.runtimeClasspath
 
-  // Run ONLY integration tests
   include '**/*IntegrationTest.class'
 
-  useJUnitPlatform()
+  shouldRunAfter(tasks.named('test'))
+}
 
-  testLogging {
-    events "passed", "skipped", "failed"
+// Combined coverage from unit AND integration tests
+tasks.named('jacocoTestReport') {
+  dependsOn(tasks.named('test'), integrationTest)
+
+  executionData(
+          tasks.named('test').get(),
+          integrationTest.get()
+  )
+
+  reports {
+    xml.required = true
+    html.required = true
+    csv.required = false
   }
+}
+
+// Include both test suites and coverage in the standard build
+tasks.named('check') {
+  dependsOn(integrationTest)
+  dependsOn(tasks.named('jacocoTestReport'))
 }

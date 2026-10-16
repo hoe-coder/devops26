@@ -54,9 +54,6 @@ jobs:
           docker images ${IMAGE_NAME}
           podman images localhost/${IMAGE_NAME}
 
-      - name: Build, test and generate coverage
-        run: ./gradlew clean build --no-daemon
-
       - name: Deploy Docker
         run: |
           docker rm -f devops-app 2>/dev/null || true

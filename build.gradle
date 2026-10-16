@@ -37,7 +37,7 @@ sonar {
   }
 }
 
-// Common configuration for unit and integration tests
+// Shared configuration for all JUnit test tasks
 tasks.withType(Test).configureEach {
   useJUnitPlatform()
 
@@ -53,14 +53,14 @@ tasks.withType(Test).configureEach {
   }
 }
 
-// Unit tests: everything except *IntegrationTest
+// Unit tests
 tasks.named('test', Test) {
   exclude '**/*IntegrationTest.class'
 }
 
-// Integration tests: only *IntegrationTest
+// Integration tests against the running Docker application
 def integrationTest = tasks.register('integrationTest', Test) {
-  description = 'Runs integration tests'
+  description = 'Runs integration tests against the running application'
   group = 'verification'
 
   testClassesDirs = sourceSets.test.output.classesDirs
@@ -68,10 +68,18 @@ def integrationTest = tasks.register('integrationTest', Test) {
 
   include '**/*IntegrationTest.class'
 
+  systemProperty 'app.baseUrl',
+          providers.environmentVariable('APP_BASE_URL')
+                  .getOrElse('http://localhost:8080')
+
   shouldRunAfter(tasks.named('test'))
+
+  // Always execute: the external application can change
+  // without any changes to the test source code.
+  outputs.upToDateWhen { false }
 }
 
-// Combined coverage from unit AND integration tests
+// Report coverage collected by the unit and integration test JVMs
 tasks.named('jacocoTestReport') {
   dependsOn(tasks.named('test'), integrationTest)
 
@@ -87,7 +95,8 @@ tasks.named('jacocoTestReport') {
   }
 }
 
-// Include both test suites and coverage in the standard build
+// Standard build/check also runs integration tests and coverage.
+// The external application must already be available.
 tasks.named('check') {
   dependsOn(integrationTest)
   dependsOn(tasks.named('jacocoTestReport'))

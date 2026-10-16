@@ -21,6 +21,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Sonar Check
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: myapp:${{ github.sha }}
+          secrets: |
+            sonar_token=${{ secrets.SONAR_TOKEN }}
+            sonar_host_url=${{ secrets.SONAR_HOST_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Bump version
         id: version

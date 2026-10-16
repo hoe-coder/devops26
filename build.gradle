@@ -34,6 +34,8 @@ sonar {
   properties {
     property "sonar.organization", "hoe-coder"
     property "sonar.projectKey", "hoe-coder_devops26"
+    property "sonar.coverage.jacoco.xmlReportPaths",
+            "build/reports/jacoco/test/jacocoTestReport.xml"
   }
 }
 
@@ -84,8 +86,8 @@ tasks.named('jacocoTestReport') {
   dependsOn(tasks.named('test'), integrationTest)
 
   executionData(
-          tasks.named('test').get(),
-          integrationTest.get()
+      tasks.named('test').get(),
+      integrationTest.get()
   )
 
   reports {

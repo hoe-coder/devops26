@@ -72,6 +72,7 @@ jobs:
             -e SONAR_TOKEN \
             -e GRADLE_USER_HOME=/workspace/.gradle \
             -v "$PWD:/workspace" \
+            -v "$HOME/.gradle:/home/gradle/.gradle" \
             -w /workspace \
             gradle:jdk21 \
             sh ./gradlew sonar \

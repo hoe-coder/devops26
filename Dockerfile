@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.gradle \
 COPY src src
 
 RUN --mount=type=cache,target=/root/.gradle \
-./gradlew bootJar --no-daemon
+./gradlew bootJar sonar --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine AS runner
 
@@ -29,3 +29,6 @@ COPY --from=builder --chown=appuser:appgroup /build/build/libs/*.jar app.jar
 USER appuser
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
+
+RUN --mount=type=cache,target=/root/.gradle \
+./gradlew check --no-daemon

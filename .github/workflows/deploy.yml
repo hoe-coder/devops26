@@ -87,6 +87,12 @@ jobs:
           systemctl --user daemon-reload
           systemctl --user restart app.service
 
-      - name: Integration Test &
+      - name: Integration Test & JaCoCo report
         run: |
-          ./gradlew check --no-daemon
+          docker run --rm \
+            --network host \
+            -e APP_BASE_URL=http://localhost:8080 \
+            -v "$PWD":/build \
+            -w /build \
+            eclipse-temurin:21-jdk-alpine \
+            ./gradlew check --no-daemon

@@ -50,7 +50,7 @@ jobs:
 
       - name: Build Docker
         run: |
-          docker build -f Dockerfile \
+          docker build test -f Dockerfile \
             -t ${IMAGE_NAME}:${IMAGE_TAG} \
             -t ${IMAGE_NAME}:latest .
 
@@ -86,3 +86,7 @@ jobs:
 
           systemctl --user daemon-reload
           systemctl --user restart app.service
+
+      - name: Integration Test &
+        run: |
+          ./gradlew check --no-daemon

@@ -16,34 +16,155 @@ Setup SSH keys for server access with:
 ssh-keygen -t rsa -b 4096 -m pem
 ```
 
-And sent the public keys to Gottardi. Also added the public keys to our GitHub accounts.
+And sent the public keys to Andreas Gottardi. Also added the public keys to our GitHub accounts.
 
 Created this Controller class to test functionality:
 
-```java
-package com.devops.devops2026.rest;
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
+## Install Github Action workflow agent on the dedicated server
 
-@RestController
-public class Controller {
+### 1. On GitHub on your repository, open:
 
-    @GetMapping("/")
-    public String hello() {
-        return "Hello!";
-    }
-}
+Settings -> Actions -> Runners -> New self-hosted runner
+
+### 2. Download and register the runner
+
+SSH into the server and execute following commands:
+
+```shell
+mdkir -p ~/actions-runner
+cd ~/actions-runner
 ```
+This creates a folder, which contains the GitHub Action runner at the root of server.
+
+```shell
+./config.sh \
+  --url https://github.com/OWNER/REPOSITORY \
+  --token YOUR_REGISTRATION_TOKEN
+```
+
+### 3. Install and start the background service
+
+```shell
+sudo ./svc.sh install
+sudo ./svc.sh start
+sudo ./svc.sh status
+```
+
+### 4. Test it with a workflow
+
+Create following
+
+```markdown
+.github/workflows/deploy.yml
+```
+in your repository.
+
+A simplified pipeline file looks like e.g.: 
+
+```yaml
+name: Test self-hosted runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - name: Show runner information
+        run: |
+          echo "Runner is working"
+          hostname
+          whoami
+          uname -a
+```
+
+## Build the Java application and run it in Docker container
+
+Usually the commands bellow are executed for building the application e.g: app.jar
+
+```shell
+./gradlew build
+```
+or in our case:
+
+```shell
+./gradlew bootJar
+```
+This creates a jar File (app.jar) under the build folder at the applcation root.
+
+But we need it to run in Docker environment. So the next steps are:
+
+### 1. Add a Dockerfile
+
+We created a Dockerfile at the root of our application folder.
+
+This multi-stage `Dockerfile` builds a Java 21 Spring Boot application using `eclipse-temurin:21-jdk-alpine`, leveraging Docker layer and BuildKit cache mounts (`/root/.gradle`) to download Gradle dependencies before compiling the source code into an executable JAR. It then transitions to a lightweight `eclipse-temurin:21-jre-alpine` runtime stage that excludes build tools and source code to minimize the final image size and attack surface. Finally, it creates a dedicated non-root user (`appuser`), copies the compiled JAR into `/app/app.jar`, exposes port `8080`, and configures the container to launch the application securely under that unprivileged user.
+
+```dockerfile
+FROM eclipse-temurin:21-jdk-alpine AS builder
+
+WORKDIR /build
+
+COPY gradlew .
+COPY gradle gradle
+COPY build.gradle settings.gradle ./
+
+RUN chmod +x ./gradlew
+
+RUN --mount=type=cache,target=/root/.gradle \
+./gradlew dependencies --no-daemon
+
+COPY src src
+
+RUN --mount=type=cache,target=/root/.gradle \
+./gradlew bootJar --no-daemon
+
+FROM eclipse-temurin:21-jre-alpine AS runner
+
+WORKDIR /app
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+EXPOSE 8080
+
+COPY --from=builder --chown=appuser:appgroup /build/build/libs/*.jar app.jar
+
+USER appuser
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
+```
+This copies the pre-build application  into the Docker image
+
+### 2. Update the workflow file with:
+
+This step builds the production Docker image from the root `Dockerfile` and tags it with both the newly generated semantic version (`${IMAGE_NAME}:${IMAGE_TAG}`) and `latest`.
+
+```yaml
+- name: Build Docker
+  run: |
+      docker build -f Dockerfile \
+        -t ${IMAGE_NAME}:${IMAGE_TAG} \
+        -t ${IMAGE_NAME}:latest .
+```
+
+This step builds an OCI container image using Podman from the root `Containerfile` and stores it locally under both the new semantic version (`localhost/${IMAGE_NAME}:${IMAGE_TAG}`) and `latest` tags.
+```yaml
+- name: Build Podman
+  run: |
+      podman build -f Containerfile \
+        -t localhost/${IMAGE_NAME}:${IMAGE_TAG} \
+        -t localhost/${IMAGE_NAME}:latest .
+```
+If the GitHub workflow is executed, it will create a docker image which contains our application on the server.
 
 ```sh
 > curl http://127.0.0.1:8080/
 Hello!⏎
 ```
 
-## 2026-09-25
-
-### Testing
+### 3. Testing
 
 ```java
 package com.devops.devops2026.rest;

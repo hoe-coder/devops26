@@ -47,10 +47,13 @@ jobs:
             IMAGE_TAG='${{ steps.version.outputs.new_tag }}'
             if [ -z "$IMAGE_TAG" ]; then echo "::error::No version calculated"; exit 1; fi
             echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+      - name: jUnit Test
+        run: |
+          ./gradlew test
 
       - name: Build Docker
         run: |
-          docker build test -f Dockerfile \
+          docker build -f Dockerfile \
             -t ${IMAGE_NAME}:${IMAGE_TAG} \
             -t ${IMAGE_NAME}:latest .
 

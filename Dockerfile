@@ -9,12 +9,12 @@ COPY build.gradle settings.gradle ./
 RUN chmod +x ./gradlew
 
 RUN --mount=type=cache,target=/root/.gradle \
-./gradlew dependencies --no-daemon
+./gradlew dependencies test --no-daemon
 
 COPY src src
 
 RUN --mount=type=cache,target=/root/.gradle \
-./gradlew bootJar --no-daemon
+./gradlew clean bootJar --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine AS runner
 

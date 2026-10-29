@@ -4,21 +4,16 @@ on:
   push:
     branches: ["main"]
 
-  workflow_dispatch:
-
-concurrency:
-  group: deploy-main
-  cancel-in-progress: false
-
 env:
   TEAM: team2
   IMAGE_NAME: team2/app
 
+permissions:
+      contents: write
+
 jobs:
   build:
     runs-on: self-hosted
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout repository

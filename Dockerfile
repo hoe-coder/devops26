@@ -22,6 +22,11 @@ RUN --mount=type=cache,target=/root/.gradle \
     SONAR_TOKEN="$(cat /run/secrets/sonar_token)" \
     ./gradlew sonar --no-daemon
 
+FROM builder AS integration-tests
+
+ENTRYPOINT ["./gradlew"]
+CMD ["integrationTest", "--no-daemon"]
+
 FROM eclipse-temurin:21-jre-alpine AS runner
 
 WORKDIR /app

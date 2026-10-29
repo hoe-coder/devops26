@@ -100,8 +100,44 @@ jobs:
           systemctl --user daemon-reload
           systemctl --user restart app.service
 
+      - name: Build integration test image
+        run: |
+          docker build \
+            --target integration-tests \
+            -t "${IMAGE_NAME}:integration-tests" .
+
+      - name: Wait for running application
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent \
+              http://localhost:8080/actuator/health > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs devops-app
+          exit 1
+
+      - name: Test running Docker application
+        run: |
+          docker run --rm \
+            --network host \
+            -e APP_BASE_URL=http://localhost:8080 \
+            "${IMAGE_NAME}:integration-tests"
+
+      - name: Run integration tests against Docker
+        run: |
+          docker run --rm \
+            --network host \
+            -e APP_BASE_URL=http://localhost:8080 \
+            team2/app:integration-tests
+
       - name: Prune unused Docker images
         run: docker image prune --all --force
 
       - name: Prune unused Podman images
         run: podman image prune --all --force
+
+

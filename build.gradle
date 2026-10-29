@@ -32,12 +32,17 @@ dependencies {
 
 sonar {
   properties {
-    property 'sonar.host.url', 'https://sonarcloud.io'
-    property "sonar.organization", "hoe-coder"
     property "sonar.projectKey", "hoe-coder_devops26"
-    property "sonar.coverage.jacoco.xmlReportPaths",
-            "build/reports/jacoco/test/jacocoTestReport.xml"
+    property "sonar.organization", "hoe-coder"
+    // Docker builder does not contain the .git directory
+
+    property 'sonar.coverage.jacoco.xmlReportPaths',
+            'build/reports/jacoco/test/jacocoTestReport.xml'
   }
+}
+
+tasks.named('bootJar') {
+  archiveFileName = 'app.jar'
 }
 
 // Shared configuration for all JUnit test tasks

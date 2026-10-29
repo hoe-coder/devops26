@@ -55,18 +55,35 @@ jobs:
           if [ -z "$IMAGE_TAG" ]; then echo "::error::No version calculated"; exit 1; fi
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
-      - name: Build Docker and run SonarCloud
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Test and analyze with SonarCloud
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
+          target: sonar
+          no-cache-filters: sonar
+          push: false
+          secrets: |
+            sonar_token=${{ secrets.SONAR_TOKEN }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+
+      - name: Build runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          target: runner
           load: true
           push: false
           tags: |
             ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
             ${{ env.IMAGE_NAME }}:latest
-          secrets: |
-            sonar_token=${{ secrets.SONAR_TOKEN }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
 
       - name: Build Podman
         run: |

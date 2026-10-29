@@ -14,15 +14,14 @@ RUN --mount=type=cache,target=/root/.gradle \
 COPY src src
 
 RUN --mount=type=cache,target=/root/.gradle \
-./gradlew clean test bootJar --no-daemon
-
-RUN --mount=type=cache,target=/root/.gradle \
-    ./gradlew jacocoTestReport -x integrationTest --no-daemon
+    ./gradlew clean test bootJar jacocoTestReport --no-daemon
 
 RUN --mount=type=cache,target=/root/.gradle \
     --mount=type=secret,id=sonar_token,required=true \
     SONAR_TOKEN="$(cat /run/secrets/sonar_token)" \
-    ./gradlew sonar --no-daemon -Dsonar.qualitygate.wait=true
+    ./gradlew sonar --no-daemon \
+    -Dsonar.qualitygate.wait=true \
+    --stacktrace --info
 
 FROM eclipse-temurin:21-jre-alpine AS runner
 

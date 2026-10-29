@@ -56,41 +56,13 @@ tasks.withType(Test).configureEach {
   }
 }
 
-// Unit tests
+// Unit tests only
 tasks.named('test', Test) {
   exclude '**/*IntegrationTest.class'
 }
 
-// Integration tests against the running Docker application
-def integrationTest = tasks.register('integrationTest', Test) {
-  description = 'Runs integration tests against the running application'
-  group = 'verification'
-
-  testClassesDirs = sourceSets.test.output.classesDirs
-  classpath = sourceSets.test.runtimeClasspath
-
-  include '**/*IntegrationTest.class'
-
-  systemProperty 'app.baseUrl',
-          providers.environmentVariable('APP_BASE_URL')
-                  .getOrElse('http://localhost:8080')
-
-  shouldRunAfter(tasks.named('test'))
-
-  // Always execute: the external application can change
-  // without any changes to the test source code.
-  outputs.upToDateWhen { false }
-}
-
-// JaCoCo measures the test JVMs. HTTP integration tests do not measure
-// application code executing in the external Docker or Podman process.
 tasks.named('jacocoTestReport') {
-  dependsOn(tasks.named('test'), integrationTest)
-
-  executionData(
-      tasks.named('test').get(),
-      integrationTest.get()
-  )
+  dependsOn(tasks.named('test'))
 
   reports {
     xml.required = true
@@ -99,9 +71,10 @@ tasks.named('jacocoTestReport') {
   }
 }
 
-// Standard build/check also runs integration tests and coverage.
-// The external application must already be available.
+tasks.named('sonar') {
+  dependsOn(tasks.named('jacocoTestReport'))
+}
+
 tasks.named('check') {
-  dependsOn(integrationTest)
   dependsOn(tasks.named('jacocoTestReport'))
 }

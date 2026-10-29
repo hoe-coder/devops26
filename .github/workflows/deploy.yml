@@ -2,97 +2,81 @@ name: Build and Deploy locally
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
+
   workflow_dispatch:
 
-concurrency:
-  group: deploy-local
-  cancel-in-progress: false
-
-env:
-  IMAGE_NAME: team2/app
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: self-hosted
-    permissions:
-      contents: write
 
     steps:
       - uses: actions/checkout@v2
         with:
-          fetch-depth: 0
+          fetch-depth: '0'
 
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Sonar Check
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          tags: ${{ env.IMAGE_NAME }}:sonar-${{ github.sha }}
-          secrets: |
-            sonar_token=${{ secrets.SONAR_TOKEN }}
-            sonar_host_url=${{ secrets.SONAR_HOST_URL }}
-          # gha cache works, but local cache is faster on self-hosted:
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
-
-      - name: Calculate version (no tag yet)
-        id: version
-        uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8 # 1.75.0
+      - name: Bump version and push tag
+        uses: anothrNick/github-tag-action@1.36.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEFAULT_BRANCH: main
-          DEFAULT_BUMP: patch
-          INITIAL_VERSION: 0.1.0
-          DRY_RUN: true
+          WITH_V: true
 
-      - name: Set image tag
+      - name: Cache SonarQube packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Cache Gradle packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
+          restore-keys: ${{ runner.os }}-gradle
+
+      - name: Unit Tests & Sonar Analysis
         env:
-          NEW_TAG: ${{ steps.version.outputs.new_tag }}
-        run: |
-          [ -n "$NEW_TAG" ] || { echo "::error::No version calculated"; exit 1; }
-          echo "IMAGE_TAG=$NEW_TAG" >> "$GITHUB_ENV"
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: ./gradlew test sonar
 
       - name: Build Docker
-        run: docker build -f Dockerfile -t "$IMAGE_NAME:$IMAGE_TAG" -t "$IMAGE_NAME:latest" .
+        run: |
+          docker build -f Dockerfile -t app:latest .
 
       - name: Build Podman
-        run: podman build -f Containerfile -t "localhost/$IMAGE_NAME:$IMAGE_TAG" -t "localhost/$IMAGE_NAME:latest" .
+        run: |
+          podman build -f Containerfile -t localhost/app:latest .
 
       - name: Deploy Docker
         run: |
           docker rm -f devops-app 2>/dev/null || true
-          docker run -d --name devops-app --restart unless-stopped \
-            -p 8080:8080 "$IMAGE_NAME:$IMAGE_TAG"
 
-      - name: Deploy Podman (Quadlet must publish a port other than 8080, e.g. 8081)
+          docker run -d \
+            --name devops-app \
+            -p 8080:8080 \
+            app:latest
+
+      - name: Wait for application
+        run: |
+          until curl -f http://localhost:8080/actuator/health; do
+            echo "Waiting for application..."
+            sleep 2
+          done
+
+      - name: Run integration tests
+        run: ./gradlew integrationTest
+
+      - name: Deploy Podman
         run: |
           export XDG_RUNTIME_DIR="/run/user/$(id -u)"
           export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
-          grep -q '^Image=' app.container || { echo "::error::app.container has no Image= line"; exit 1; }
+          
           mkdir -p ~/.config/containers/systemd/
-          sed "s|^Image=.*|Image=localhost/${IMAGE_NAME}:${IMAGE_TAG}|" app.container \
-            > ~/.config/containers/systemd/app.container
+          cp -av app.container ~/.config/containers/systemd/
+
           systemctl --user daemon-reload
           systemctl --user restart app.service
-          systemctl --user is-active app.service
-
-      - name: Smoke test
-        run: |
-          for p in 8080 8081; do
-            curl -fsS --retry 10 --retry-delay 2 --retry-all-errors "http://localhost:$p/" >/dev/null
-          done
-
-      - name: Push version tag (only after successful deploy)
-        run: |
-          git tag "$IMAGE_TAG"
-          git push origin "$IMAGE_TAG"
-
-      - name: Prune old images
-        if: always()
-        run: |
-          docker image prune -f
-          podman image prune -f
-    

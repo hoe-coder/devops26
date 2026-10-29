@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/root/.gradle \
 COPY src src
 
 RUN --mount=type=cache,target=/root/.gradle \
-    ./gradlew clean test bootJar jacocoTestReport --no-daemon
+    ./gradlew test bootJar jacocoTestReport --no-daemon
 
 RUN --mount=type=cache,target=/root/.gradle \
     --mount=type=secret,id=sonar_token,required=true \

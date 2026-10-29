@@ -9,7 +9,11 @@ env:
   IMAGE_NAME: team2/app
 
 permissions:
-      contents: write
+  contents: write
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -21,109 +25,161 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Bump version
-        id: version
-        uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8 # 1.75.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEFAULT_BRANCH: main
-          DEFAULT_BUMP: patch
-          INITIAL_VERSION: 0.1.0
-
-      - name: Set image tag
+      - name: Calculate image version
+        shell: bash
         run: |
-            IMAGE_TAG='${{ steps.version.outputs.new_tag }}'
-            if [ -z "$IMAGE_TAG" ]; then echo "::error::No version calculated"; exit 1; fi
-            echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          set -euo pipefail
 
-      - name: Build Docker and run Sonar analysis
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # Reuse an existing release tag when rerunning the same commit.
+          IMAGE_TAG=$(git tag --points-at "$GITHUB_SHA" \
+            --list '[0-9]*.[0-9]*.[0-9]*' \
+            --sort=-version:refname |
+            awk '/^[0-9]+\.[0-9]+\.[0-9]+$/ {print; exit}')
+
+          if [ -z "$IMAGE_TAG" ]; then
+            LAST_TAG=$(git tag --list '[0-9]*.[0-9]*.[0-9]*' \
+              --sort=-version:refname |
+              awk '/^[0-9]+\.[0-9]+\.[0-9]+$/ {print; exit}')
+
+            if [ -z "$LAST_TAG" ]; then
+              IMAGE_TAG="0.1.0"
+            else
+              IFS='.' read -r major minor patch <<< "$LAST_TAG"
+              IMAGE_TAG="${major}.${minor}.$((10#$patch + 1))"
+            fi
+          fi
+
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          echo "Image version: $IMAGE_TAG"
+
+      - name: Run unit tests
+        run: sh ./gradlew test --no-daemon
+
+      - name: Build Docker image
         run: |
           docker build -f Dockerfile \
-            --secret id=sonar_token,env=SONAR_TOKEN \
-            --no-cache-filter builder \
-            -t "${IMAGE_NAME}:${IMAGE_TAG}" \
-            -t "${IMAGE_NAME}:latest" .
+            -t "${IMAGE_NAME}:${IMAGE_TAG}" .
 
-      - name: Build Podman
+      - name: Build Podman image
         run: |
           podman build -f Containerfile \
-            -t localhost/${IMAGE_NAME}:${IMAGE_TAG} \
-            -t localhost/${IMAGE_NAME}:latest .
-
-      - name: Show tags
-        run: |
-          docker images ${IMAGE_NAME}
-          podman images localhost/${IMAGE_NAME}
+            -t "localhost/${IMAGE_NAME}:${IMAGE_TAG}" .
 
       - name: Deploy Docker
+        shell: bash
         run: |
-          docker rm -f devops-app 2>/dev/null || true
+          set -euo pipefail
+
+          if docker container inspect devops-app > /dev/null 2>&1; then
+            docker rm -f devops-app
+          fi
 
           docker run -d \
             --name devops-app \
+            --restart unless-stopped \
             -p 8080:8080 \
-            ${IMAGE_NAME}:${IMAGE_TAG}
+            "${IMAGE_NAME}:${IMAGE_TAG}"
 
       - name: Deploy Podman
+        shell: bash
         run: |
+          set -euo pipefail
+
           export XDG_RUNTIME_DIR="/run/user/$(id -u)"
           export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 
-          mkdir -p ~/.config/containers/systemd/
-          # pin the Quadlet to the version just built
-          sed "s|^Image=.*|Image=localhost/${IMAGE_NAME}:${IMAGE_TAG}|" app.container \
-            > ~/.config/containers/systemd/app.container
+          mkdir -p "$HOME/.config/containers/systemd"
+
+          sed "s|^Image=.*|Image=localhost/${IMAGE_NAME}:${IMAGE_TAG}|" \
+            app.container > "$HOME/.config/containers/systemd/app.container"
 
           systemctl --user daemon-reload
           systemctl --user restart app.service
 
-      - name: Wait for running applications
+      - name: Wait for applications
         shell: bash
         run: |
+          set -euo pipefail
+
           for port in 8080 8090; do
             ready=false
-            for attempt in $(seq 1 60); do
-              if curl --fail --silent --max-time 2 "http://localhost:$port/" > /dev/null; then
+
+            for attempt in {1..60}; do
+              if curl --fail --silent --max-time 2 \
+                "http://localhost:${port}/" > /dev/null; then
                 ready=true
                 break
               fi
               sleep 2
             done
+
             if [ "$ready" != true ]; then
-              echo "::error::Application on port $port did not become ready"
+              echo "::error::Application on port ${port} did not become ready"
+              if [ "$port" = 8080 ]; then
+                docker logs --tail 100 devops-app || true
+              else
+                journalctl --user -u app.service -n 100 --no-pager || true
+              fi
               exit 1
             fi
           done
 
-      - name: Unit tests, Docker integration tests and coverage
+      - name: Docker integration tests and coverage
         env:
           APP_BASE_URL: http://localhost:8080
         run: sh ./gradlew check --no-daemon
 
-      - name: Podman integration tests
-        env:
-          APP_BASE_URL: http://localhost:8090
-        run: sh ./gradlew integrationTest --no-daemon
-
-      - name: SonarQube Cloud analysis
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          if [ -z "$SONAR_TOKEN" ]; then
-            echo "::error::Configure the SONAR_TOKEN repository secret for SonarQube Cloud"
-            exit 1
-          fi
-          sh ./gradlew sonar --no-daemon -Dsonar.qualitygate.wait=true
-
-      - name: Upload test and coverage reports
+      - name: Preserve Docker test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-and-coverage-reports
+          name: docker-test-and-coverage-reports
           path: |
             build/reports/tests/
             build/test-results/
             build/reports/jacoco/
           if-no-files-found: warn
+
+      - name: Podman integration tests
+        env:
+          APP_BASE_URL: http://localhost:8090
+        run: sh ./gradlew integrationTest --rerun-tasks --no-daemon
+
+      - name: Preserve Podman integration reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: podman-integration-test-reports
+          path: |
+            build/reports/tests/integrationTest/
+            build/test-results/integrationTest/
+          if-no-files-found: warn
+
+      - name: SonarQube Cloud analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::Configure the SONAR_TOKEN repository secret"
+            exit 1
+          fi
+
+          sh ./gradlew sonar --no-daemon -Dsonar.qualitygate.wait=true
+
+      - name: Publish successful version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! git show-ref --verify --quiet "refs/tags/${IMAGE_TAG}"; then
+            git tag "$IMAGE_TAG" "$GITHUB_SHA"
+          fi
+
+          git push origin "refs/tags/${IMAGE_TAG}"
+
+          docker tag "${IMAGE_NAME}:${IMAGE_TAG}" "${IMAGE_NAME}:latest"
+          podman tag "localhost/${IMAGE_NAME}:${IMAGE_TAG}" \
+            "localhost/${IMAGE_NAME}:latest"

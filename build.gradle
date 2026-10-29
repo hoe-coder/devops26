@@ -32,10 +32,10 @@ dependencies {
 
 sonar {
   properties {
-    property "sonar.projectKey", "hoe-coder_devops26"
-    property "sonar.organization", "hoe-coder"
-    // Docker builder does not contain the .git directory
-
+    property 'sonar.host.url', 'https://sonarcloud.io'
+    property 'sonar.organization', 'hoe-coder'
+    property 'sonar.projectKey', 'hoe-coder_devops26'
+    property 'sonar.scm.disabled', 'true'
     property 'sonar.coverage.jacoco.xmlReportPaths',
             'build/reports/jacoco/test/jacocoTestReport.xml'
   }
@@ -62,24 +62,32 @@ tasks.withType(Test).configureEach {
 }
 
 // Unit tests only
+// Keep integration tests out of the unit test task
 tasks.named('test', Test) {
   exclude '**/*IntegrationTest.class'
 }
 
-tasks.named('jacocoTestReport') {
-  dependsOn(tasks.named('test'))
+def integrationTest = tasks.register('integrationTest', Test) {
+  description = 'Runs integration tests'
+  group = 'verification'
+
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+
+  useJUnitPlatform()
+  include '**/*IntegrationTest.class'
+
+  shouldRunAfter(tasks.named('test'))
+}
+
+tasks.register('jacocoIntegrationTestReport', JacocoReport) {
+  dependsOn(integrationTest)
+
+  executionData(integrationTest.get())
+  sourceSets(sourceSets.main)
 
   reports {
     xml.required = true
     html.required = true
-    csv.required = false
   }
-}
-
-tasks.named('sonar') {
-  dependsOn(tasks.named('jacocoTestReport'))
-}
-
-tasks.named('check') {
-  dependsOn(tasks.named('jacocoTestReport'))
 }

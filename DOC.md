@@ -456,5 +456,3 @@ Coverage describes application code executed in the test JVM. Measuring code in
 running containers requires separate JaCoCo instrumentation in those containers.
 The workflow currently deploys locally before testing; a failed quality gate does
 not roll back those deployments.
-
-

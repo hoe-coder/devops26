@@ -21,30 +21,45 @@ public class DirectoryIndexFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-        HttpServletResponse response,
-        FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain) throws ServletException, IOException {
 
-        String path = request.getRequestURI();
-
-        if (path.length() > 1 && path.endsWith("/")) {
-            String resourcePath = "classpath:/static" + path + "index.html";
-            Resource resource = resourceLoader.getResource(resourcePath);
-
-            if (resource.exists() && resource.isReadable()) {
-                request.getRequestDispatcher(path + "index.html").forward(request, response);
-                return;
-            }
+        if (!"GET".equals(request.getMethod())
+                && !"HEAD".equals(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
         }
 
-        if (!path.endsWith("/") && !path.contains(".")) {
-            Resource resource = resourceLoader.getResource("classpath:/static" + path + "/index.html");
-            if (resource.exists() && resource.isReadable()) {
-                response.sendRedirect(path + "/");
-                return;
-            }
+        String contextPath = request.getContextPath();
+        String path = request.getRequestURI()
+                .substring(contextPath.length());
+
+        // Only simple directory segments are handled by this filter.
+        // Rejects dots, %, backslashes, semicolons and repeated slashes.
+        if (!path.matches("/[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*/?")) {
+            filterChain.doFilter(request, response);
+            return;
         }
 
-        filterChain.doFilter(request, response);
+        String directory = path.endsWith("/") ? path : path + "/";
+        String indexPath = directory + "index.html";
+
+        Resource resource =
+                resourceLoader.getResource("classpath:/static" + indexPath);
+
+        if (!resource.exists() || !resource.isReadable()) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        if (path.endsWith("/")) {
+            request.getRequestDispatcher(indexPath)
+                    .forward(request, response);
+            return;
+        }
+
+        response.sendRedirect(contextPath + directory);
     }
 }

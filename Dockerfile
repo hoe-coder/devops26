@@ -9,12 +9,20 @@ COPY build.gradle settings.gradle ./
 RUN chmod +x ./gradlew
 
 RUN --mount=type=cache,target=/root/.gradle \
-./gradlew dependencies test --no-daemon
+./gradlew dependencies --no-daemon
 
 COPY src src
 
 RUN --mount=type=cache,target=/root/.gradle \
-./gradlew clean bootJar --no-daemon
+./gradlew clean test bootJar --no-daemon
+
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew jacocoTestReport -x integrationTest --no-daemon
+
+RUN --mount=type=cache,target=/root/.gradle \
+    --mount=type=secret,id=sonar_token,required=true \
+    SONAR_TOKEN="$(cat /run/secrets/sonar_token)" \
+    ./gradlew sonar --no-daemon -Dsonar.qualitygate.wait=true
 
 FROM eclipse-temurin:21-jre-alpine AS runner
 

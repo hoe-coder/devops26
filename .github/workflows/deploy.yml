@@ -6,6 +6,10 @@ on:
 
   workflow_dispatch:
 
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
 env:
   TEAM: team2
   IMAGE_NAME: team2/app
@@ -21,17 +25,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Sonar Check
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          tags: myapp:${{ github.sha }}
-          secrets: |
-            sonar_token=${{ secrets.SONAR_TOKEN }}
-            sonar_host_url=${{ secrets.SONAR_HOST_URL }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Bump version
         id: version
@@ -48,11 +41,15 @@ jobs:
             if [ -z "$IMAGE_TAG" ]; then echo "::error::No version calculated"; exit 1; fi
             echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
-      - name: Build Docker
+      - name: Build Docker and run Sonar analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           docker build -f Dockerfile \
-            -t ${IMAGE_NAME}:${IMAGE_TAG} \
-            -t ${IMAGE_NAME}:latest .
+            --secret id=sonar_token,env=SONAR_TOKEN \
+            --no-cache-filter builder \
+            -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+            -t "${IMAGE_NAME}:latest" .
 
       - name: Build Podman
         run: |
@@ -87,12 +84,51 @@ jobs:
           systemctl --user daemon-reload
           systemctl --user restart app.service
 
-      - name: Integration Test & JaCoCo report
+      - name: Wait for running applications
+        shell: bash
         run: |
-          docker run --rm \
-            --network host \
-            -e APP_BASE_URL=http://localhost:8080 \
-            -v "$PWD":/build \
-            -w /build \
-            eclipse-temurin:21-jdk-alpine \
-            ./gradlew check --no-daemon
+          for port in 8080 8090; do
+            ready=false
+            for attempt in $(seq 1 60); do
+              if curl --fail --silent --max-time 2 "http://localhost:$port/" > /dev/null; then
+                ready=true
+                break
+              fi
+              sleep 2
+            done
+            if [ "$ready" != true ]; then
+              echo "::error::Application on port $port did not become ready"
+              exit 1
+            fi
+          done
+
+      - name: Unit tests, Docker integration tests and coverage
+        env:
+          APP_BASE_URL: http://localhost:8080
+        run: sh ./gradlew check --no-daemon
+
+      - name: Podman integration tests
+        env:
+          APP_BASE_URL: http://localhost:8090
+        run: sh ./gradlew integrationTest --no-daemon
+
+      - name: SonarQube Cloud analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::Configure the SONAR_TOKEN repository secret for SonarQube Cloud"
+            exit 1
+          fi
+          sh ./gradlew sonar --no-daemon -Dsonar.qualitygate.wait=true
+
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-and-coverage-reports
+          path: |
+            build/reports/tests/
+            build/test-results/
+            build/reports/jacoco/
+          if-no-files-found: warn

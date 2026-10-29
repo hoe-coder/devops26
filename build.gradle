@@ -82,7 +82,8 @@ def integrationTest = tasks.register('integrationTest', Test) {
   outputs.upToDateWhen { false }
 }
 
-// Report coverage collected by the unit and integration test JVMs
+// JaCoCo measures the test JVMs. HTTP integration tests do not measure
+// application code executing in the external Docker or Podman process.
 tasks.named('jacocoTestReport') {
   dependsOn(tasks.named('test'), integrationTest)
 

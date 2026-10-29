@@ -1,34 +1,32 @@
 package com.devops.devops2026.rest;
 
-import org.junit.jupiter.api.DisplayName;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.web.servlet.MockMvc;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-@WebMvcTest(Controller.class)
 class ControllerIntegrationTest {
-    @Autowired
-    private MockMvc mvc;
-
-    @Test
-    @DisplayName("Should return Hello!")
-    void hello_ShouldReturnOkAndGreeting() throws Exception {
-        mvc.perform(get("/"))
-            .andExpect(status().isOk())
-            .andExpect(content().string("Hello!"));
+    private void assertEndpoint(String path, String expected) throws Exception {
+        String baseUrl = System.getProperty("app.baseUrl", "http://localhost:8080");
+        HttpResponse<String> response = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10)).build().send(
+                HttpRequest.newBuilder(URI.create(baseUrl + path))
+                        .timeout(Duration.ofSeconds(10)).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode());
+        assertEquals(expected, response.body());
     }
 
     @Test
-    @DisplayName("Should return provided Name")
-    void test_ShouldReturnProvidedName() throws Exception {
-        String testName = "Alice";
-        mvc.perform(get("/{name}", testName))
-            .andExpect(status().isOk())
-            .andExpect(content().string(testName));
+    void helloReturnsGreeting() throws Exception {
+        assertEndpoint("/", "Hello!");
+    }
+
+    @Test
+    void nameReturnsProvidedName() throws Exception {
+        assertEndpoint("/Alice", "Alice");
     }
 }

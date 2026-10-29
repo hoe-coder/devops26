@@ -21,9 +21,7 @@ RUN --mount=type=cache,target=/root/.gradle \
 RUN --mount=type=cache,target=/root/.gradle \
     --mount=type=secret,id=sonar_token,required=true \
     SONAR_TOKEN="$(cat /run/secrets/sonar_token)" \
-    ./gradlew sonar --no-daemon \
-    -Dsonar.qualitygate.wait=true \
-    --stacktrace --info
+    ./gradlew sonar --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine AS runner
 

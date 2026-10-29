@@ -93,4 +93,9 @@ jobs:
 
           systemctl --user daemon-reload
           systemctl --user restart app.service
-          
+
+      - name: Prune unused Docker images
+        run: docker image prune --all --force
+
+      - name: Prune unused Podman images
+        run: podman image prune --all --force

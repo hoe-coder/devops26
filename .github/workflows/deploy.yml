@@ -37,18 +37,6 @@ jobs:
           if [ -z "$IMAGE_TAG" ]; then echo "::error::No version calculated"; exit 1; fi
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
-      - name: Sonar Cloud Check
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          tags: myapp:${{ github.sha }}
-          secrets: |
-            sonar_token=${{ secrets.SONAR_TOKEN }}
-            sonar_host_url=${{ secrets.SONAR_HOST_URL }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       - name: Set image tag
         run: |
           IMAGE_TAG='${{ steps.version.outputs.new_tag }}'

@@ -37,6 +37,24 @@ jobs:
           if [ -z "$IMAGE_TAG" ]; then echo "::error::No version calculated"; exit 1; fi
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
+      - name: Sonar Cloud Check
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: myapp:${{ github.sha }}
+          secrets: |
+            sonar_token=${{ secrets.SONAR_TOKEN }}
+            sonar_host_url=${{ secrets.SONAR_HOST_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Set image tag
+        run: |
+          IMAGE_TAG='${{ steps.version.outputs.new_tag }}'
+          if [ -z "$IMAGE_TAG" ]; then echo "::error::No version calculated"; exit 1; fi
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+
       - name: Build Docker
         run: |
           docker build -f Dockerfile \
@@ -62,23 +80,6 @@ jobs:
             --name devops-app \
             -p 8080:8080 \
             ${IMAGE_NAME}:${IMAGE_TAG}
-
-      - name: Scan with SonarCloud
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          docker run --rm \
-            --user "$(id -u):$(id -g)" \
-            -e SONAR_TOKEN \
-            -e GRADLE_USER_HOME=/workspace/.gradle \
-            -v "$PWD:/workspace" \
-            -v "$HOME/.gradle:/home/gradle/.gradle" \
-            -w /workspace \
-            gradle:jdk21 \
-            sh ./gradlew sonar \
-              -Dsonar.host.url=https://sonarcloud.io \
-              -Dsonar.coverage.jacoco.xmlReportPaths=build/reports/jacoco/test/jacocoTestReport.xml \
-              --no-daemon
 
       - name: Deploy Podman
         run: |

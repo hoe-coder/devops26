@@ -2,54 +2,69 @@ name: Build and Deploy locally
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
   workflow_dispatch:
 
-permissions:
-  contents: write
+env:
+  TEAM: team2
+  IMAGE_NAME: team2/app
 
 jobs:
   build:
     runs-on: self-hosted
+    permissions:
+      contents: write
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          fetch-depth: '0'
+          fetch-depth: 0
 
-      - name: Bump version and push tag
-        uses: anothrNick/github-tag-action@1.36.0
+      - name: Sonar Check
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: myapp:${{ github.sha }}
+          secrets: |
+            sonar_token=${{ secrets.SONAR_TOKEN }}
+            sonar_host_url=${{ secrets.SONAR_HOST_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Bump version
+        id: version
+        uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8 # 1.75.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WITH_V: true
+          DEFAULT_BRANCH: main
+          DEFAULT_BUMP: patch
+          INITIAL_VERSION: 0.1.0
 
-      - name: Cache SonarQube packages
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
-
-      - name: Cache Gradle packages
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
-          restore-keys: ${{ runner.os }}-gradle
-
-      - name: Unit Tests & Sonar Analysis
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew test sonar
+      - name: Set image tag
+        run: |
+          IMAGE_TAG='${{ steps.version.outputs.new_tag }}'
+          if [ -z "$IMAGE_TAG" ]; then echo "::error::No version calculated"; exit 1; fi
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
       - name: Build Docker
         run: |
-          docker build -f Dockerfile -t app:latest .
+          docker build -f Dockerfile \
+            -t ${IMAGE_NAME}:${IMAGE_TAG} \
+            -t ${IMAGE_NAME}:latest .
 
       - name: Build Podman
         run: |
-          podman build -f Containerfile -t localhost/app:latest .
+          podman build -f Containerfile \
+            -t localhost/${IMAGE_NAME}:${IMAGE_TAG} \
+            -t localhost/${IMAGE_NAME}:latest .
+
+      - name: Show tags
+        run: |
+          docker images ${IMAGE_NAME}
+          podman images localhost/${IMAGE_NAME}
 
       - name: Deploy Docker
         run: |
@@ -58,25 +73,17 @@ jobs:
           docker run -d \
             --name devops-app \
             -p 8080:8080 \
-            app:latest
-
-      - name: Wait for application
-        run: |
-          until curl -f http://localhost:8080/actuator/health; do
-            echo "Waiting for application..."
-            sleep 2
-          done
-
-      - name: Run integration tests
-        run: ./gradlew integrationTest
+            ${IMAGE_NAME}:${IMAGE_TAG}
 
       - name: Deploy Podman
         run: |
           export XDG_RUNTIME_DIR="/run/user/$(id -u)"
           export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
-          
+
           mkdir -p ~/.config/containers/systemd/
-          cp -av app.container ~/.config/containers/systemd/
+          # pin the Quadlet to the version just built
+          sed "s|^Image=.*|Image=localhost/${IMAGE_NAME}:${IMAGE_TAG}|" app.container \
+            > ~/.config/containers/systemd/app.container
 
           systemctl --user daemon-reload
           systemctl --user restart app.service

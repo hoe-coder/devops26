@@ -178,7 +178,7 @@ jobs:
     name: Deploy to production server
     needs: build
     if: github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, linux, production]
+    runs-on: [self-hosted, linux, production, devops2026]
     environment: production
     timeout-minutes: 15
     permissions:

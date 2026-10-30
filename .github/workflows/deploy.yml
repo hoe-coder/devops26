@@ -1,10 +1,13 @@
-name: Build and Deploy locally
+name: Build Docs, Test and Deploy
 
 on:
   push:
-    branches: ["main"]
-
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
 
 env:
   TEAM: team2
@@ -13,32 +16,39 @@ env:
 jobs:
   build:
     runs-on: self-hosted
-    permissions:
-      contents: write
-
+    outputs:
+      image_tag: ${{ steps.version.outputs.new_tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Bump version
-        id: version
-        uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8 # 1.75.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEFAULT_BRANCH: main
-          DEFAULT_BUMP: patch
-          INITIAL_VERSION: 0.1.0
-
-      - name: Set image tag
+      - name: Prepare documentation sources
         run: |
-          IMAGE_TAG='${{ steps.version.outputs.new_tag }}'
-          if [ -z "$IMAGE_TAG" ]; then echo "::error::No version calculated"; exit 1; fi
-          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          mkdir -p docs src/main/resources/static/docs
+          cp -v README.md DOC.md docs/
 
-      - name: Set up Docker Build
-        uses: docker/setup-buildx-action@v3
+      - name: Build MkDocs site
+        run: |
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            -v "$PWD:/docs" \
+            squidfunk/mkdocs-material \
+            build --clean --site-dir src/main/resources/static/docs
+
+      - name: Build documentation PDFs
+        run: |
+          for f in docs/*.md; do
+            [ -f "$f" ] || continue
+            filename="$(basename "$f" .md)"
+            docker run --rm \
+              -u "$(id -u):$(id -g)" \
+              -v "$PWD:/data" \
+              pandoc/extra "$f" \
+              --pdf-engine=xelatex \
+              -o "src/main/resources/static/docs/${filename}.pdf"
+          done
 
       - name: Test and analyze with SonarCloud
         uses: docker/build-push-action@v6
@@ -53,7 +63,29 @@ jobs:
           cache-from: type=gha,scope=app
           cache-to: type=gha,mode=max,scope=app
 
-      - name: Build runtime image
+      - name: Bump version
+        id: version
+        uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8 # v1.75.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: main
+          DEFAULT_BUMP: patch
+          INITIAL_VERSION: 0.1.0
+
+      - name: Set image tag
+        shell: bash
+        run: |
+          IMAGE_TAG='${{ steps.version.outputs.new_tag }}'
+          if [ -z "$IMAGE_TAG" ]; then
+            echo '::error::No version calculated'
+            exit 1
+          fi
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build runtime Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -67,77 +99,125 @@ jobs:
           cache-from: type=gha,scope=app
           cache-to: type=gha,mode=max,scope=app
 
-      - name: Build Podman
+      - name: Build Podman image
         run: |
           podman build -f Containerfile \
-            -t localhost/${IMAGE_NAME}:${IMAGE_TAG} \
-            -t localhost/${IMAGE_NAME}:latest .
+            -t "localhost/${IMAGE_NAME}:${IMAGE_TAG}" \
+            -t "localhost/${IMAGE_NAME}:latest" .
 
-      - name: Show tags
+      - name: Build integration test image
         run: |
-          docker images ${IMAGE_NAME}
-          podman images localhost/${IMAGE_NAME}
+          docker build --target integration-tests \
+            -t "${IMAGE_NAME}:integration-tests" .
+
+      - name: Show image tags
+        run: |
+          docker images "${IMAGE_NAME}"
+          podman images "localhost/${IMAGE_NAME}"
 
       - name: Deploy Docker
         run: |
           docker rm -f devops-app 2>/dev/null || true
-
-          docker run -d \
-            --name devops-app \
-            -p 8080:8080 \
-            ${IMAGE_NAME}:${IMAGE_TAG}
+          docker run -d --name devops-app -p 8080:8080 \
+            "${IMAGE_NAME}:${IMAGE_TAG}"
 
       - name: Deploy Podman
         run: |
           export XDG_RUNTIME_DIR="/run/user/$(id -u)"
           export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
-
           mkdir -p ~/.config/containers/systemd/
-          # pin the Quadlet to the version just built
           sed "s|^Image=.*|Image=localhost/${IMAGE_NAME}:${IMAGE_TAG}|" app.container \
             > ~/.config/containers/systemd/app.container
-
           systemctl --user daemon-reload
           systemctl --user restart app.service
 
-      - name: Build integration test image
-        run: |
-          docker build \
-            --target integration-tests \
-            -t "${IMAGE_NAME}:integration-tests" .
-
-      - name: Wait for running application
+      - name: Wait for Docker application health
         shell: bash
         run: |
           for attempt in {1..30}; do
-            if curl --fail --silent \
-              http://localhost:8080/actuator/health > /dev/null; then
+            if curl --fail --silent http://localhost:8080/actuator/health >/dev/null; then
               exit 0
             fi
             sleep 2
           done
-
           docker logs devops-app
           exit 1
 
-      - name: Test running Docker application
+      - name: Run integration tests against Docker
         run: |
-          docker run --rm \
-            --network host \
+          docker run --rm --network host \
             -e APP_BASE_URL=http://localhost:8080 \
             "${IMAGE_NAME}:integration-tests"
 
-      - name: Run integration tests against Docker
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish versioned production image
+        shell: bash
+        env:
+          REPOSITORY: ${{ github.repository }}
         run: |
-          docker run --rm \
-            --network host \
-            -e APP_BASE_URL=http://localhost:8080 \
-            team2/app:integration-tests
+          set -euo pipefail
+          IMAGE="ghcr.io/${REPOSITORY,,}:${IMAGE_TAG}"
+          docker tag "${IMAGE_NAME}:${IMAGE_TAG}" "$IMAGE"
+          docker push "$IMAGE"
 
       - name: Prune unused Docker images
+        if: always()
         run: docker image prune --all --force
 
       - name: Prune unused Podman images
+        if: always()
         run: podman image prune --all --force
 
+  deploy-production:
+    name: Deploy to production server
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, production]
+    environment: production
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    concurrency:
+      group: production-deployment
+      cancel-in-progress: false
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Pull and deploy production image
+        shell: bash
+        env:
+          REPOSITORY: ${{ github.repository }}
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${REPOSITORY,,}:${IMAGE_TAG}"
+          cd /opt/devops-app
+          docker pull "$IMAGE"
+          IMAGE="$IMAGE" docker compose up -d --no-build --remove-orphans
+
+      - name: Verify production health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null; then
+              echo 'Production application is healthy'
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f /opt/devops-app/compose.yml ps
+          docker logs --tail 100 devops-app || true
+          exit 1

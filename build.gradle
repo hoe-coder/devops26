@@ -65,6 +65,7 @@ tasks.withType(Test).configureEach {
 // Keep integration tests out of the unit test task
 tasks.named('test', Test) {
   exclude '**/*IntegrationTest.class'
+  finalizedBy(tasks.jacocoIntegrationTestReport)
 }
 
 def integrationTest = tasks.register('integrationTest', Test) {

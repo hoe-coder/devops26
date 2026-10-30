@@ -151,6 +151,17 @@ jobs:
             -e APP_BASE_URL=http://localhost:8080 \
             "${IMAGE_NAME}:integration-tests"
 
+      - name: Push Docker image to custom registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSIONED_IMAGE="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+          LATEST_IMAGE="${REGISTRY}/${IMAGE_NAME}:latest"
+          docker tag "${IMAGE_NAME}:${IMAGE_TAG}" "$VERSIONED_IMAGE"
+          docker tag "${IMAGE_NAME}:${IMAGE_TAG}" "$LATEST_IMAGE"
+          docker push "$VERSIONED_IMAGE"
+          docker push "$LATEST_IMAGE"
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -175,6 +186,7 @@ jobs:
       - name: Prune unused Podman images
         if: always()
         run: podman image prune --all --force
+
   deploy-production:
     name: Deploy to production server
     needs: build
@@ -197,21 +209,15 @@ jobs:
           echo "Runner: $RUNNER_NAME"
           hostname -I
 
-      - name: Login to custom registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ vars.REGISTRY_HOST }}
-
       - name: Pull Docker image
         shell: bash
         env:
-          REGISTRY: ${{ vars.REGISTRY_HOST }}
           IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
         run: |
           set -euo pipefail
-    
-          IMAGE="${REGISTRY}/team2/app:${IMAGE_TAG}"
-    
+          
+          IMAGE="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+          
           echo "Pulling $IMAGE"
           docker pull "$IMAGE"
 
@@ -223,13 +229,12 @@ jobs:
       - name: Run production container
         shell: bash
         env:
-          REGISTRY: ${{ vars.REGISTRY_HOST }}
           IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
         run: |
           set -euo pipefail
-    
-          IMAGE="${REGISTRY}/team2/app:${IMAGE_TAG}"
-    
+          
+          IMAGE="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+          
           docker run -d \
             --name devops-app \
             --restart unless-stopped \
@@ -241,7 +246,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-    
+          
           for attempt in {1..30}; do
             if curl -fsS \
               http://127.0.0.1:8080/actuator/health; then
@@ -250,6 +255,6 @@ jobs:
             fi
             sleep 2
           done
-    
+          
           docker logs --tail 100 devops-app || true
           exit 1

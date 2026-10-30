@@ -19,6 +19,7 @@ jobs:
     runs-on: self-hosted
     outputs:
       image_tag: ${{ steps.version.outputs.new_tag }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -174,7 +175,6 @@ jobs:
       - name: Prune unused Podman images
         if: always()
         run: podman image prune --all --force
-
   deploy-production:
     name: Deploy to production server
     needs: build

@@ -16,7 +16,7 @@ env:
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux, devops2026-build]
     outputs:
       image_tag: ${{ steps.version.outputs.new_tag }}
 

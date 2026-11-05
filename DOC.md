@@ -1,6 +1,6 @@
 # Documentation
 
-## Init
+## Initialize Repository (GitHub)
 
 Setup the GitHub [repository](https://github.com/hoe-coder/devops26).
 

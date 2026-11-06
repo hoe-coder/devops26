@@ -20,7 +20,6 @@ And sent the public keys to Andreas Gottardi. Also added the public keys to our 
 
 Created this Controller class to test functionality:
 
-
 ## Install Github Action workflow agent on the dedicated server
 
 ### 1. On GitHub on your repository, open:
@@ -31,13 +30,14 @@ Settings -> Actions -> Runners -> New self-hosted runner
 
 SSH into the server and execute following commands:
 
-```shell
+```sh
 mdkir -p ~/actions-runner
 cd ~/actions-runner
 ```
+
 This creates a folder, which contains the GitHub Action runner at the root of server.
 
-```shell
+```sh
 ./config.sh \
   --url https://github.com/OWNER/REPOSITORY \
   --token YOUR_REGISTRATION_TOKEN
@@ -45,7 +45,7 @@ This creates a folder, which contains the GitHub Action runner at the root of se
 
 ### 3. Install and start the background service
 
-```shell
+```sh
 sudo ./svc.sh install
 sudo ./svc.sh start
 sudo ./svc.sh status
@@ -58,6 +58,7 @@ Create following
 ```markdown
 .github/workflows/deploy.yml
 ```
+
 in your repository.
 
 A simplified pipeline file looks like e.g.:
@@ -84,15 +85,17 @@ jobs:
 
 Usually the commands bellow are executed for building the application e.g: app.jar in the `/build` folder:
 
-```shell
+```sh
 ./gradlew build
 ```
+
 The `build` task also runs integration tests and therefore needs a running instance.
 To create the application JAR before starting the instance, use:
 
-```shell
+```sh
 ./gradlew bootJar
 ```
+
 This creates a jar File (app.jar) under the build folder at the applcation root.
 
 But we need it to run in Docker environment. So the next steps are:
@@ -136,7 +139,8 @@ USER appuser
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
-This copies the pre-build application  into the Docker image
+
+This copies the pre-build application into the Docker image
 
 ### 2. Update the workflow file with:
 
@@ -151,6 +155,7 @@ This step builds the production Docker image from the root `Dockerfile` and tags
 ```
 
 This step builds an OCI container image using Podman from the root `Containerfile` and stores it locally under both the new semantic version (`localhost/${IMAGE_NAME}:${IMAGE_TAG}`) and `latest` tags.
+
 ```yaml
 - name: Build Podman
   run: |
@@ -158,6 +163,7 @@ This step builds an OCI container image using Podman from the root `Containerfil
       -t localhost/${IMAGE_NAME}:${IMAGE_TAG} \
       -t localhost/${IMAGE_NAME}:latest .
 ```
+
 If the GitHub workflow is executed, it will create a docker image which contains our application on the server.
 
 ```sh

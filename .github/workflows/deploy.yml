@@ -29,7 +29,7 @@ jobs:
       - name: Prepare documentation sources
         run: |
           mkdir -p docs src/main/resources/static/docs
-          cp -v README.md DOC.md docs/project
+          cp -v README.md DOC.md docs/lectures
 
       - name: Build MkDocs site
         run: |
@@ -41,7 +41,7 @@ jobs:
 
       - name: Build documentation PDFs
         run: |
-          for f in docs/project/*.md; do
+          for f in docs/lectures/*.md; do
             [ -f "$f" ] || continue
             filename="$(basename "$f" .md)"
             docker run --rm \

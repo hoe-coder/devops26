@@ -28,7 +28,7 @@ jobs:
 
       - name: Prepare documentation sources
         run: |
-          mkdir -p docs src/main/resources/static/docs
+          mkdir -p docs src/main/resources/static/docs/lectures
           cp -v README.md DOC.md docs/lectures
 
       - name: Build MkDocs site
@@ -37,7 +37,7 @@ jobs:
             -u "$(id -u):$(id -g)" \
             -v "$PWD:/docs" \
             squidfunk/mkdocs-material \
-            build --clean --site-dir src/main/resources/static/docs
+            build --clean --site-dir src/main/resources/static/docs/lectures
 
       - name: Build documentation PDFs
         run: |
@@ -49,7 +49,7 @@ jobs:
               -v "$PWD:/data" \
               pandoc/extra "$f" \
               --pdf-engine=xelatex \
-              -o "src/main/resources/static/docs/${filename}.pdf"
+              -o "src/main/resources/static/docs/lectures/${filename}.pdf"
           done
 
       - name: Test and analyze with SonarCloud

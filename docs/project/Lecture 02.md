@@ -1,6 +1,3 @@
-# Project DevOps 2026
-## by Hüseyin Öner, David Rüscher, Isabel Nemec
-
 ## Lecture 02
 
 ### Connect to the server
@@ -48,7 +45,9 @@ Afterwards we installed the runner, in our case the GitHub Runner, following thi
 ```text
 https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners
 ```
-And lastly, we familiarized us with `Docker` commands and ran the basic runner.
+And lastly, we familiarized us with `Docker` commands and ran the basic runner. We also tested if the runner gets active after a push to the repository.
+
+It is working.
 
 
 

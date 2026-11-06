@@ -29,19 +29,19 @@ jobs:
       - name: Prepare documentation sources
         run: |
           mkdir -p docs src/main/resources/static/docs
-          cp -v README.md DOC.md docs/
+          cp -v README.md DOC.md docs/project
 
       - name: Build MkDocs site
         run: |
           docker run --rm \
             -u "$(id -u):$(id -g)" \
-            -v "$PWD:/docs" \
+            -v "$PWD:/docs/project" \
             squidfunk/mkdocs-material \
             build --clean --site-dir src/main/resources/static/docs
 
       - name: Build documentation PDFs
         run: |
-          for f in docs/*.md; do
+          for f in docs/project/*.md; do
             [ -f "$f" ] || continue
             filename="$(basename "$f" .md)"
             docker run --rm \

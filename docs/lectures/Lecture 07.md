@@ -1,4 +1,18 @@
-# Lecture 07
+# Lecture 07 - PDF Documentation Generation
+
+Lecture 07 documentation: generating one PDF file from the already existing Markdown documentation, doing this before the documentation image is generated and before the application is built, placing the PDF into the `site/` folder, copying it into the application's static resources, and serving it both from the documentation server/container and from the application.
+
+## Goals Overview
+
+| Requirement | Implementation |
+|---|---|
+| PDF from the already existing documentation | All Markdown docs combined into one `documentation.pdf` with `pandoc/extra` |
+| Before the documentation image is generated | PDF step runs before `docker build -f Dockerfile.docs` |
+| Before the application is built | PDF is copied into `src/main/resources/static/` before the application image build |
+| PDF in the `site` folder | `site/documentation.pdf`, next to the MkDocs HTML output |
+| PDF in the static resources | `src/main/resources/static/documentation.pdf` |
+| Served by the documentation container | nginx serves it at port 8081 |
+| Served by the application | Spring Boot serves it from the static resources at port 8080 |
 
 ## What Goes Into the PDF
 
@@ -9,7 +23,6 @@ The PDF is generated from the already existing Markdown documentation of the rep
 - `docs/MKDOCS.md`
 - `docs/PANDOC.md`
 - `docs/PODMAN.md`
-- `docs/project/*.md`
 
 Passing multiple input files to pandoc concatenates them into a single document, so the result is one self-contained PDF with a table of contents covering all the documentation.
 
@@ -88,7 +101,7 @@ The nginx documentation container serves the PDF from its web root:
 http://10.0.40.164:8081/documentation.pdf
 ```
 
-where `164` is the ending of the build agent's IP address and 8081 is the documentation port.
+where `NN` is the ending of the build agent's IP address and 8081 is the documentation port.
 
 ### With the Application
 
@@ -110,3 +123,13 @@ After a pipeline run:
 4. `docker exec team2-docs ls /usr/share/nginx/html` shows `documentation.pdf` inside the documentation container.
 
 If a URL returns 404, check the step order in the workflow: the PDF generation must come after the MkDocs build (because of `--clean`) and before both image builds.
+
+## Requirements Checklist
+
+- [x] PDF generated from the already existing documentation (combined Markdown via `pandoc/extra`)
+- [x] Generation runs before the documentation image is built
+- [x] Generation runs before the application is built
+- [x] PDF placed into the `site/` folder
+- [x] PDF copied into `static` inside the resources (`src/main/resources/static/`)
+- [x] PDF served by the documentation server/container (nginx, port 8081)
+- [x] PDF served by the application (Spring Boot static resources, port 8080)

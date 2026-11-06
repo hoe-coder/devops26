@@ -1,4 +1,20 @@
-# MkDocs Documentation Image
+# Lecture 06 - MkDocs Documentation Image
+
+Lecture 06 documentation: initializing the MkDocs project in the repository, generating the site with the `squidfunk/mkdocs-material` Docker image, packaging it into an nginx-based image tagged with the team number, running it on the pipeline with stop/cleanup/start logic, checking it from a local browser, and pushing the documentation image to the registry.
+
+## Goals Overview
+
+| Requirement | Implementation |
+|---|---|
+| Initialize a MkDocs project | `mkdocs.yml` and `docs/` folder in the repository root |
+| Notes as Markdown in the docs folder | Lecture notes and tooling docs under `docs/` |
+| Generate the page with the mkdocs-material image | `docker run squidfunk/mkdocs-material build` producing the `site/` folder |
+| Nginx-based documentation image | `Dockerfile.docs` with `FROM nginx:alpine`, site copied to the web root |
+| Tag with team number and identifier | `team2-docs:<version>` |
+| Start/stop/cleanup logic in the pipeline | `docker rm -f team2-docs` before every start |
+| Check from local browser | `http://10.0.40.NN:8081` (build agent IP + chosen port) |
+| Push to registry | `10.0.40.171:5000/team2-docs:<version>` |
+
 ## MkDocs Project in the Repository
 
 The MkDocs project is initialized at the repository root:
@@ -15,7 +31,6 @@ The MkDocs project is initialized at the repository root:
         ├── Lecture 02.md
         ├── Lecture 03.md
         └── Lecture 04.md
-        ...
 ```
 
 The configuration in `mkdocs.yml`:
@@ -40,6 +55,8 @@ docker run --rm \
   squidfunk/mkdocs-material \
   build --clean --site-dir site
 ```
+
+The same container can also serve the site live during development (`mkdocs serve` on port 8000) to preview changes before committing them.
 
 - `-v "$PWD:/docs"` mounts the repository; MkDocs reads `mkdocs.yml` and `docs/` from there.
 - `--site-dir site` writes the static HTML output into the `site/` folder.
@@ -113,12 +130,14 @@ The pipeline gets the same stop/cleanup/start logic as the application deploymen
 - **Port definition** — `-p 8081:80` publishes the nginx port 80 on host port 8081. Port 8080 is already taken by the application container, so the documentation gets its own port.
 - **Health check** — the pipeline waits until nginx responds before continuing, so a broken build fails early.
 
+Note: the `site/` folder also receives `documentation.pdf` from the PDF generation step (see PDF-DOCUMENTATION.md), so the documentation image serves both the HTML site and the PDF. Because MkDocs builds with `--clean`, the PDF step must run after the MkDocs build.
+
 ## Check From the Local Browser
 
 Once the pipeline step has run, the documentation is reachable from any local browser via the build agent's IP address and the chosen port:
 
 ```
-http://10.0.40.164:8081
+http://10.0.40.NN:8081
 ```
 
 where `NN` is the ending of the build agent's IP address. The Material for MkDocs site shows the navigation with all notes from the `docs/` folder.
@@ -137,3 +156,14 @@ After the documentation container is verified, the image is pushed to the team r
 ```
 
 This publishes `10.0.40.171:5000/team2-docs:<version>` — for example `10.0.40.171:5000/team2-docs:0.0.1` — so the exact documentation build that was just verified is preserved in the registry alongside the application image.
+
+## Requirements Checklist
+
+- [x] MkDocs project initialized in the repository (`mkdocs.yml`, `docs/` folder)
+- [x] Notes (Markdown files) placed in the docs folder
+- [x] Site generated with the `squidfunk/mkdocs-material` image (`site/` folder)
+- [x] Nginx-based image serving the documentation (`Dockerfile.docs`)
+- [x] Image tagged with team number and identifier (`team2-docs:0.0.1`)
+- [x] Documentation container started on the pipeline with stop and cleanup logic
+- [x] Documentation checked from the local browser via build agent IP and port 8081
+- [x] Documentation image pushed to the registry (`10.0.40.171:5000/team2-docs:<version>`)

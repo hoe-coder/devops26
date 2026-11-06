@@ -1,0 +1,150 @@
+# Lecture 01 - Team and Repository Setup
+
+This document covers the initial setup goals: defining the team, initializing the GitHub repository, generating SSH key pairs for each member, sending the member list and keys to the lecturer, sharing the repository with the team, defining and initializing the application, working with git and the Gradle build system, and pushing the application to the repository.
+
+## Goals Overview
+
+| Requirement | Implementation |
+|---|---|
+| Define teams | Team 2: Hüseyin Öner, David Rüscher, Isabel Nemec |
+| Initialize a repository | `github.com/hoe-coder/devops26` |
+| SSH key pair for each member | `ssh-keygen -t rsa -b 4096 -m pem` |
+| Member list and keys to the lecturer | Unformatted text files emailed to andreas.gottardi@fhv.at |
+| Share repository to team members | Project → Settings → Collaborators |
+| Define and initialize application | Spring Boot (Java 21, Gradle) via Spring Initializr |
+| Familiarize with git | clone, pull, add, commit, push, branch |
+| Familiarize with the build system | Gradle wrapper and its tasks |
+| Push the application to the repository | Initial commit and push to `main` |
+
+## Define Teams
+
+The team for the DevOps 2026 project is fixed and every member needs a GitHub account:
+
+| Member | Role |
+|---|---|
+| Hüseyin Öner | Team member |
+| David Rüscher | Team member |
+| Isabel Nemec | Team member |
+
+One member (the repository owner) creates and administers the repository and adds the others as collaborators.
+
+## Initialize the Repository
+
+1. Log in to GitHub as the repository owner.
+2. Create a new repository named `devops26` (visible to the team, e.g. private).
+3. Optionally initialize it with a `README.md` and `.gitignore` for Java/Gradle.
+
+The repository lives at `https://github.com/hoe-coder/devops26`.
+
+## Generate SSH Key Pairs
+
+Every team member who does not already have an SSH key pair generates one on their machine. The keys are needed later to authenticate against the build agent over SSH:
+
+```sh
+ssh-keygen -t rsa -b 4096 -m pem
+```
+
+- `-t rsa -b 4096` — a 4096-bit RSA key, strong enough for the course servers.
+- `-m pem` — the legacy PEM format, required by the target server configuration.
+- Press Enter to accept the default location (`~/.ssh/id_rsa`), optionally protect the key with a passphrase.
+
+This produces two files:
+
+- `~/.ssh/id_rsa` — the private key, never shared with anyone.
+- `~/.ssh/id_rsa.pub` — the public key, safe to distribute.
+
+Members should also add their public key to their own GitHub account (Settings → SSH and GPG keys) so they can clone and push via SSH.
+
+## Send Team List and SSH Keys
+
+The team compiles:
+
+1. A plain text list of team members (name and GitHub username).
+2. Each member's public key as an **unformatted text file** (e.g. `oner.txt`, `ruescher.txt`, `nemec.txt` — just the contents of `id_rsa.pub`).
+
+Both are sent by email to [andreas.gottardi@fhv.at](mailto:andreas.gottardi@fhv.at), so the lecturer can register the keys for server access on the build agents. The private keys stay on each member's machine and are never emailed.
+
+## Share the Repository
+
+The repository owner invites the other team members:
+
+1. Open the repository on GitHub.
+2. Go to **Project → Settings → Collaborators** (or Collaborators & teams).
+3. Add each member by GitHub username and send the invitation.
+4. Members accept the invitation from their email or GitHub notifications.
+
+After accepting, everyone has push access to the repository.
+
+## Define and Initialize the Application
+
+The application is a Spring Boot service built with Gradle. It is generated with the [Spring Initializr](https://start.spring.io/):
+
+- **Project:** Gradle
+- **Language:** Java 21
+- **Spring Boot:** current stable version
+- **Group / Artifact:** `com.devops` / `devops26`
+- **Dependencies:**
+  1. Spring DevTools
+  2. Spring Docker Compose
+  3. Spring Web
+  4. Spring Boot Actuator
+
+The generated project is unpacked and committed as the initial application: a `@SpringBootApplication` class, the Gradle wrapper (`gradlew`, `gradle/wrapper/`), `build.gradle`, and `settings.gradle`. The REST controller with the `/` and `/{name}` endpoints is added as the first application code.
+
+## Working With Git
+
+The everyday commands used throughout the project:
+
+| Command | Purpose |
+|---|---|
+| `git clone git@github.com:hoe-coder/devops26.git` | Get the repository onto a machine |
+| `git pull` | Fetch and merge the latest changes before starting work |
+| `git status` / `git diff` | See what changed locally |
+| `git add <file>` | Stage changes for the next commit |
+| `git commit -m "message"` | Record staged changes |
+| `git push` | Upload commits to the shared repository |
+| `git branch <name>` | Create a branch for a feature or experiment |
+| `git switch <name>` | Switch to a branch |
+| `git merge <name>` | Merge a branch back into the current one |
+
+Feature branches (e.g. `feature/integration-tests`) keep `main` stable; changes are merged into `main` only when they work, which then triggers the pipeline.
+
+## The Gradle Build System
+
+Spring Boot projects are built with Gradle. The repository includes the Gradle wrapper (`./gradlew`), so no local Gradle installation is needed — the wrapper downloads the correct Gradle version (8.14) automatically.
+
+The most important tasks:
+
+| Task | Purpose |
+|---|---|
+| `./gradlew build` | Compile, run tests, and package the application |
+| `./gradlew test` | Run the unit tests |
+| `./gradlew bootJar` | Build the executable JAR (`build/libs/app.jar`) |
+| `./gradlew bootRun` | Start the application locally |
+| `./gradlew tasks` | List all available tasks |
+
+Dependencies and plugins (Spring Boot, SonarQube, JaCoCo) are declared in `build.gradle`; the Java 21 toolchain is configured there as well.
+
+## Push the Application
+
+The initialized application is pushed to the repository:
+
+```sh
+git add .
+git commit -m "Initialize Spring Boot application"
+git push -u origin main
+```
+
+With the application in the repository, every team member can clone it, build it with `./gradlew build`, and the CI/CD pipeline can pick it up from `main` on every push.
+
+## Requirements Checklist
+
+- [x] Team defined (Hüseyin Öner, David Rüscher, Isabel Nemec)
+- [x] Repository initialized (`github.com/hoe-coder/devops26`)
+- [x] SSH key pair generated per member (`ssh-keygen -t rsa -b 4096 -m pem`)
+- [x] Member list and public keys sent to andreas.gottardi@fhv.at as unformatted text files
+- [x] Repository shared via Settings → Collaborators
+- [x] Application defined and initialized (Spring Boot, Java 21, Gradle, Spring Initializr)
+- [x] git workflow established (clone, pull, add, commit, push, branch)
+- [x] Gradle build system understood (wrapper, build, test, bootJar)
+- [x] Application pushed to the repository

@@ -1,0 +1,154 @@
+# Lecture 02 - GitHub Runner and Hello World Pipeline
+
+This document covers the Lecture 02 goals: connecting to the prepared server, connecting a self-hosted GitHub runner to the project, creating a simple pipeline that prints "Hello World", having the admin install the runner as a service, familiarizing with basic Docker commands, and validating the runner via the `_work` folder.
+
+## Goals Overview
+
+| Requirement | Implementation |
+|---|---|
+| Connect the runner to the GitHub project | Self-hosted runner configured with `config.sh` and registered in the repository |
+| Simple pipeline printing "Hello World" | `.github/workflows/hello.yml` with an `echo` step |
+| Admin installs the runner as a service | Admin (lecturer) notified once the runner is online; installed as a systemd service |
+| Basic Docker commands | `docker ps`, `run`, `stop`, `rm`, `logs`, `build`, `exec`, `images`, `prune` |
+| Validation | `~/actions-runner/_work/<repository>/<repository>` folders after builds |
+
+## Connect to the Server
+
+The runner runs on the prepared team server. Connect as the `student` user with your SSH key:
+
+```shell
+ssh -i ~/.ssh/id_github -l student 10.0.40.164
+```
+
+or equivalently:
+
+```shell
+ssh -i ~/.ssh/id_github student@10.0.40.164
+```
+
+Both commands use the `student` user; `-i` references the private key generated in Lecture 01. The matching **public key** must be stored at GitHub (account → Settings → SSH and GPG keys) so pushes to the repository work from the server as well.
+
+## Connect the Runner to the GitHub Project
+
+The runner is registered following the official guide
+<https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners>:
+
+1. In the repository: **Settings → Actions → Runners → New self-hosted runner** (Linux, x64).
+2. On the server, in the home directory, download and extract the runner package:
+
+   ```shell
+   mkdir actions-runner && cd actions-runner
+   curl -o actions-runner-linux-x64-<version>.tar.gz -L \
+     https://github.com/actions/runner/releases/download/v<version>/actions-runner-linux-x64-<version>.tar.gz
+   tar xzf actions-runner-linux-x64-<version>.tar.gz
+   ```
+
+3. Configure the runner with the registration token shown by GitHub:
+
+   ```shell
+   ./config.sh --url https://github.com/hoe-coder/devops26 --token <TOKEN>
+   ```
+
+   During configuration, add the team label (e.g. `devops2026-build`) so later workflows can target this specific runner.
+
+4. Start the runner for the first time:
+
+   ```shell
+   ./run.sh
+   ```
+
+The runner now shows as *Idle* in the repository's runner list and picks up jobs whose `runs-on` labels match.
+
+## Hello World Pipeline
+
+The pipeline is a single workflow file `.github/workflows/hello.yml` in the repository:
+
+```yaml
+name: Hello World
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  hello:
+    runs-on: [self-hosted, linux]
+
+    steps:
+      - name: Say hello
+        run: echo "Hello, World!"
+
+      - name: Show runner info
+        run: |
+          echo "Running on: $RUNNER_NAME"
+          uname -a
+```
+
+- `on: push` triggers the workflow on every push to `main`; `workflow_dispatch` allows manual runs from the Actions tab.
+- `runs-on: [self-hosted, linux]` targets the team's own runner instead of GitHub-hosted machines.
+- The first step prints `Hello, World!`; the second proves the job really ran on the team server by printing the runner name and the kernel version.
+
+After committing and pushing the file, the workflow appears under **Actions**, runs on the self-hosted runner, and the log shows the printed output.
+
+## Install the Runner as a Service
+
+As soon as the runner is running (visible as *Idle* in the repository), the admin — Andreas Gottardi — is told to install it as a service, so the runner:
+
+- starts automatically when the server boots,
+- restarts automatically after crashes,
+- runs in the background without an open SSH session.
+
+Installation as a systemd service is normally done with:
+
+```shell
+sudo ./svc.sh install
+sudo ./svc.sh start
+```
+
+Once installed, the runner status can be checked with `sudo ./svc.sh status`.
+
+## Basic Docker Commands
+
+The Docker commands used throughout the project (see technical hints):
+
+| Command | Purpose |
+|---|---|
+| `docker ps` / `docker ps -a` | List running / all containers |
+| `docker run -d --name x -p 8080:8080 img` | Start a container in the background |
+| `docker stop <name>` / `docker rm -f <name>` | Stop / remove a container by name |
+| `docker logs <name>` | Show a container's output |
+| `docker exec -it <name> sh` | Open a shell inside a running container |
+| `docker images` | List local images |
+| `docker build -t name:tag .` | Build an image from a Dockerfile |
+| `docker pull` / `docker push` | Download / upload images from a registry |
+| `docker image prune -f` | Remove unused images |
+
+These are the building blocks of the later pipeline steps: building the application image, running it with a fixed name, reading its logs, and cleaning up after deployments.
+
+## Validation
+
+When the runner is working and the project has been built, GitHub Actions creates a working directory per repository on the server. Check:
+
+```shell
+ls ~/actions-runner/_work
+```
+
+Expected structure:
+
+```
+~/actions-runner/_work/
+└── devops26/            # <repository>
+    └── devops26/        # checkout of the repository (the _work/<repo>/<repo> folder)
+```
+
+Each pipeline run checks the repository out into this folder, so seeing the project files there proves the runner executed the workflow on the team server.
+
+## Requirements Checklist
+
+- [x] Connected to the server as `student` via SSH key (`10.0.40.164`)
+- [x] Runner connected to the GitHub project (`config.sh` with registration token and team label)
+- [x] Simple pipeline printing "Hello World" (`hello.yml`, runs on the self-hosted runner)
+- [x] Admin told to install the runner as a service once it is running
+- [x] Basic Docker commands familiarized (run, ps, stop, rm, logs, build, exec, prune)
+- [x] Validated via `~/actions-runner/_work` — repository/project folders exist after builds

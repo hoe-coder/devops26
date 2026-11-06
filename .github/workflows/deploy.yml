@@ -251,7 +251,7 @@ jobs:
           docker run -d \
             --name devops-app \
             --restart unless-stopped \
-            -p 8080:8080 \
+            -p 1821:8080 \
             -e SPRING_PROFILES_ACTIVE=production \
             "$IMAGE"
 

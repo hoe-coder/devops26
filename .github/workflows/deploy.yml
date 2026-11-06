@@ -35,7 +35,7 @@ jobs:
         run: |
           docker run --rm \
             -u "$(id -u):$(id -g)" \
-            -v "$PWD:/docs/project" \
+            -v "$PWD:/docs" \
             squidfunk/mkdocs-material \
             build --clean --site-dir src/main/resources/static/docs
 
